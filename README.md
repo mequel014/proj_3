@@ -548,3 +548,33 @@ yarn-error.log*
 
 
 КАК ЗАКРЫТЬ ДОСТУП К MAIL
+Убрать доступ через nginx, оставить доступ только по SSH-туннелю
+- Удалите или закомментируйте блоки /mail в nginx-https.conf и перезагрузите nginx:
+  - удалите:
+    - location = /mail { ... }
+    - location /mail/ { ... }
+  - docker compose exec nginx nginx -s reload
+- Опционально уберите MP_WEBROOT (чтобы UI был на /) и пробросьте порты Mailpit только на loopback хоста:
+```yaml
+smtp:
+  image: axllent/mailpit:latest
+  environment:
+    # MP_WEBROOT можно убрать или оставить по вкусу
+    # MP_WEBROOT: /mail
+    MP_MAX_MESSAGES: 5000
+    MP_SMTP_AUTH_ACCEPT_ANY: "1"
+    MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+  ports:
+    - "127.0.0.1:8025:8025"   # UI только на localhost сервера
+    - "127.0.0.1:1025:1025"   # SMTP только на localhost сервера (не обязательно)
+  networks: [web]
+  restart: unless-stopped
+```
+- Примените:
+  - docker compose up -d smtp
+- Как подключаться теперь:
+  - По SSH-туннелю с вашего ноутбука:
+    - ssh -N -L 8025:127.0.0.1:8025 user@YOUR_VDS
+    - Откройте http://localhost:8025 в браузере
+  - Если хотите ещё и SMTP локально протестировать:
+    - ssh -N -L 1025:127.0.0.1:1025 user@YOUR_VDS
