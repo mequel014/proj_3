@@ -1,0 +1,74 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "title": "HTTP Requests Total",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (method, handler, status) (http_requests_total)",
+          "legendFormat": "{{method}} {{handler}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "id": 1
+    },
+    {
+      "title": "HTTP Request Duration (95th percentile)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, handler, method) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{method}} {{handler}}",
+          "refId": "B"
+        }
+      ],
+      "id": 2
+    },
+    {
+      "title": "HTTP Requests In Progress",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (handler, method) (http_requests_in_progress)",
+          "legendFormat": "{{method}} {{handler}}",
+          "refId": "C"
+        }
+      ],
+      "id": 3
+    },
+    {
+      "title": "Python GC Objects Collected",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (generation) (rate(python_gc_objects_collected_total[5m]))",
+          "legendFormat": "Generation {{generation}}",
+          "refId": "D"
+        }
+      ],
+      "id": 4
+    },
+    {
+      "title": "Python GC Collections",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (generation) (rate(python_gc_collections_total[5m]))",
+          "legendFormat": "Generation {{generation}}",
+          "refId": "E"
+        }
+      ],
+      "id": 5
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": ["fastapi", "prometheus"],
+  "timezone": "browser",
+  "title": "FastAPI + Prometheus",
+  "version": 1
+}

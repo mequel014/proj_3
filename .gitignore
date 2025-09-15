@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Virtual env
+venv_ai_backend/
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+.npm-cache/
+dist/
+.nuxt/
+.output/
+*.log
+
+# OS
+.DS_Store
+
+# Project envs (не коммитим секреты)
+ai_backend/.env
+frontend/.env
+deploy/*.env
+
+# Docker
+*.pid
+EOF
+
+# OLD
+OLD/
+DOCS/
