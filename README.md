@@ -574,7 +574,131 @@ smtp:
   - docker compose up -d smtp
 - Как подключаться теперь:
   - По SSH-туннелю с вашего ноутбука:
+  ssh -L 8025:127.0.0.1:8025 root@193.124.115.214
     - ssh -N -L 8025:127.0.0.1:8025 user@YOUR_VDS
-    - Откройте http://localhost:8025 в браузере
+    - Откройте http://localhost:8025/mail/ в браузере
   - Если хотите ещё и SMTP локально протестировать:
     - ssh -N -L 1025:127.0.0.1:1025 user@YOUR_VDS
+
+
+-----------
+-----------
+
+ПОДКЛЮЧЕНИЕ ПОЧТЫ
+
+Отлично, давай переключим рассылку с Mailpit на реальный SMTP и отправителя nonreply@sillytavern.ru.
+
+Что нужно сделать
+1) Выбрать способ отправки
+- Вариант A (просто и надёжно): транзакционный сервис (Mailgun/SendGrid/Elastic Email). Нужна верификация домена (SPF/DKIM/DMARC).
+- Вариант B: собственный почтовый ящик у провайдера (например, Yandex 360). Создаёшь ящик nonreply@sillytavern.ru и шлёшь через smtp.yandex.ru.
+
+2) Настроить DNS аутентификацию домена
+- SPF (TXT для sillytavern.ru):
+  - Mailgun: v=spf1 include:mailgun.org -all
+  - SendGrid: v=spf1 include:sendgrid.net -all
+  - Yandex 360: v=spf1 include:_spf.yandex.ru -all
+- DKIM: провайдер даст точный TXT/CNAME. Опубликуй ровно те записи, что он покажет.
+- DMARC (рекомендую хотя бы мониторинг):
+  - _dmarc.sillytavern.ru TXT: v=DMARC1; p=none; rua=mailto:postmaster@sillytavern.ru; aspf=s; adkim=s
+  - Когда всё стабильно — меняй p=quarantine или p=reject.
+
+3) Обновить конфиг бэкенда (перейти на реальный SMTP)
+В проде больше не нужен контейнер smtp (Mailpit). Оставь его только для локальной разработки.
+
+В docker-compose.yml для backend установи переменные провайдера (пример для Yandex 360; для Mailgun значения ниже):
+```yaml
+backend:
+  environment:
+    DATABASE_URL: postgresql+psycopg://ai_user:ai_password@postgres:5432/ai_db
+    # SMTP (реальный провайдер)
+    SMTP_HOST: smtp.yandex.ru
+    SMTP_PORT: "587"
+    SMTP_USERNAME: nonreply@sillytavern.ru
+    SMTP_PASSWORD: <app_password>
+    SMTP_TLS: "true"
+    FROM_EMAIL: nonreply@sillytavern.ru
+    FROM_NAME: "SillyTavern"
+```
+
+Пример для Mailgun:
+- SMTP_HOST: smtp.mailgun.org
+- SMTP_PORT: "587"
+- SMTP_USERNAME: postmaster@ВАШ_СЕНДИНГ_ДОМЕН (обычно postmaster@mg.sillytavern.ru)
+- SMTP_PASSWORD: SMTP-пароль из Mailgun
+- FROM_EMAIL: nonreply@sillytavern.ru
+Важно: чтобы From был nonreply@sillytavern.ru и проходил DMARC, верифицируй именно домен sillytavern.ru у провайдера (или настрой DKIM так, чтобы d=sillytavern.ru).
+
+4) Обновить функцию отправки писем
+Если у тебя send_signup_link ещё “заглушка”, вот рабочий пример на smtplib с TLS и HTML+plain:
+
+```python
+# utils/emailer.py
+import os, ssl, smtplib
+from email.message import EmailMessage
+
+def send_signup_link(to_email: str, link: str):
+    from_email = os.getenv("FROM_EMAIL", "nonreply@sillytavern.ru")
+    from_name = os.getenv("FROM_NAME", "SillyTavern")
+    host = os.getenv("SMTP_HOST")
+    port = int(os.getenv("SMTP_PORT", "587"))
+    user = os.getenv("SMTP_USERNAME")
+    password = os.getenv("SMTP_PASSWORD")
+    use_tls = os.getenv("SMTP_TLS", "true").lower() == "true"
+    use_ssl = os.getenv("SMTP_SSL", "false").lower() == "true"
+
+    msg = EmailMessage()
+    msg["Subject"] = "Завершение регистрации"
+    msg["From"] = f"{from_name} <{from_email}>"
+    msg["To"] = to_email
+    msg["Reply-To"] = from_email
+    msg.set_content(f"Здравствуйте!\n\nДля завершения регистрации перейдите по ссылке:\n{link}\n\nЕсли вы не запрашивали письмо — просто игнорируйте его.")
+    msg.add_alternative(
+        f"""
+        <p>Здравствуйте!</p>
+        <p>Для завершения регистрации нажмите <a href="{link}">эту ссылку</a>.</p>
+        <p>Если вы не запрашивали письмо — просто игнорируйте его.</p>
+        """,
+        subtype="html",
+    )
+
+    if use_ssl:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, port, context=context) as s:
+            if user and password:
+                s.login(user, password)
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port) as s:
+            if use_tls:
+                s.starttls(context=ssl.create_default_context())
+            if user and password:
+                s.login(user, password)
+            s.send_message(msg)
+```
+
+5) Локальная разработка
+- Оставь Mailpit локально: SMTP_HOST=localhost, SMTP_PORT=1025, SMTP_TLS=false.
+- В проде — меняем переменные на реальные (см. выше).
+- Бэкенд-код не меняется: он читает env и шлёт туда, куда нужно.
+
+6) Проверка
+- В проде: docker compose up -d --build backend
+- Вызови /request-signup и проверь доставку:
+  - логи бэка: docker compose logs -f backend
+  - заголовки письма: должно быть DKIM=pass, SPF=pass, DMARC=pass
+- Если письмо попадает в “Спам”, проверь SPF/DKIM/DMARC через mail-tester.com (10/10 цель).
+
+Быстрые рецепты DNS (для удобства)
+- Yandex 360:
+  - MX: 10 mx.yandex.net.
+  - SPF (TXT): v=spf1 include:_spf.yandex.ru -all
+  - DKIM (TXT): mail._domainkey.sillytavern.ru = значение из Яндекса
+  - SMTP: smtp.yandex.ru:587 (STARTTLS), логин: nonreply@sillytavern.ru, пароль: пароль приложения (если включена 2FA)
+- Mailgun:
+  - Верифицируй домен (лучше корневой sillytavern.ru, чтобы d=sillytavern.ru)
+  - SPF (TXT): v=spf1 include:mailgun.org -all
+  - DKIM: 2 записи (CNAME/TXT) из панели Mailgun
+  - SMTP: smtp.mailgun.org:587, user/password — из панели
+
+Хочешь — скажи, каким провайдером будешь пользоваться (Mailgun/SendGrid/Yandex 360 и т.п.), пришлю точные DNS-записи и готовый блок environment для docker-compose.

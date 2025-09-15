@@ -1,5 +1,4 @@
 <script setup>
-definePageMeta({ middleware: 'auth' })
 const d = useDialogsStore()
 onMounted(() => d.fetchDialogs())
 </script>

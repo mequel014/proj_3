@@ -1,5 +1,5 @@
 <script setup>
-definePageMeta({ middleware: ['auth', 'admin'] })
+definePageMeta({ middleware: ['admin'] })
 const {$api} = useNuxtApp()
 const users = ref([])
 const loading = ref(false)

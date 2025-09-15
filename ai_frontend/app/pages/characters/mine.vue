@@ -1,5 +1,4 @@
 <script setup>
-definePageMeta({ middleware: 'auth' })
 const ch = useCharactersStore()
 onMounted(() => ch.fetchMine())
 </script>

@@ -1,5 +1,4 @@
 <script setup>
-definePageMeta({ middleware: 'auth' })
 const route = useRoute()
 const dialogId = computed(() => Number(route.params.id))
 </script>
