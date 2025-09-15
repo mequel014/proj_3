@@ -394,13 +394,47 @@ Frontend (Nuxt3)
 3) Подготовка nginx для первичного выпуска сертификатов
 - cp deploy/nginx/nginx-http.conf deploy/nginx/default.conf
 
-4) Старт nginx (только http) для валидации ACME
-- docker compose up -d nginx
+4) Старт nginx без сборки frontend и backend (только http) для валидации ACME
+- docker compose up -d --no-deps nginx
 
+4)  Сначала проверим, что dns установлены корректно. Должны быть ip текущего сервера: 
+- dig +short A sillytavern.ru
+- dig +short AAAA sillytavern.ru
+
+Посмотрите авторитативные NS:
+- dig +short NS sillytavern.ru
+
+Спросите каждую NS напрямую:
+- for ns in $(dig +short NS sillytavern.ru); do echo "== $ns"; dig @$ns sillytavern.ru A +noall +answer; done
+Если видите два A или на части NS всё ещё старый IP — удалите старую A в панели DNS и подождите TTL.
+
+Сравните на публичных резолверах:
+- dig @1.1.1.1 sillytavern.ru A +noall +answer
+- dig @8.8.8.8 sillytavern.ru A +noall +answer
+
+Проверьте заголовок Server:
+- curl -I http://sillytavern.ru
+
+- curl -I http://sillytavern.ru/.well-known/acme-challenge/test-ok
+
+Проверяйте оба стека:
+- curl -4 -I http://sillytavern.ru/.well-known/acme-challenge/test-ok
+- curl -6 -I http://sillytavern.ru/.well-known/acme-challenge/test-ok
+
+Когда test-ok (или test-bind) отдаётся 200, запускайте 5
 5) Выпуск сертификата для sillytavern.ru
-- docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d sillytavern.ru --email ВАШ_EMAIL --agree-tos --no-eff-email
+
+- docker compose run --rm --entrypoint "" certbot \
+  certbot certonly --webroot -w /var/www/certbot \
+  -d sillytavern.ru -m mequel014@gmail.com --agree-tos --no-eff-email --debug
+
+Если показывает ошибку, нужно запустить с флагом -staging:
+- docker compose run --rm --entrypoint "" certbot \
+  certbot certonly --webroot -w /var/www/certbot \
+  -d sillytavern.ru -m mequel014@gmail.com --agree-tos --no-eff-email --debug --staging
 
 Убедитесь, что команда завершилась успешно и появились файлы в /etc/letsencrypt (volume letsencrypt).
+- docker compose run --rm --entrypoint "" certbot ls -l /etc/letsencrypt/live/sillytavern.ru
 
 6) Переключение nginx на https-конфиг и запуск всех сервисов
 - cp deploy/nginx/nginx-https.conf deploy/nginx/default.conf
@@ -410,6 +444,15 @@ Frontend (Nuxt3)
 7) Автообновление сертификатов
 - Сервис certbot уже запущен и раз в 12 часов пытается renew. Проверить:
   - docker compose logs -f certbot
+
+Для пересборки:
+- docker compose up --build -d frontend
+
+Для логов:
+- docker compose logs -f backend frontend
+
+В случае обновления nginx config
+- docker compose exec nginx nginx -s reload
 
 Доступы:
 - Приложение (Nuxt): https://sillytavern.ru

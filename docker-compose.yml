@@ -30,6 +30,7 @@ services:
       MP_MAX_MESSAGES: 5000
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_WEBROOT: /mail
     networks: [web]
     restart: unless-stopped
     # Web UI почты через nginx: https://sillytavern.ru/mail/
@@ -42,6 +43,7 @@ services:
     env_file:
       - ./ai_backend/.env
     environment:
+      FRONTEND_BASE_URL: https://sillytavern.ru
       # В продакшне принудительно используем Postgres (локально .env оставляет sqlite)
       DATABASE_URL: postgresql+psycopg://ai_user:ai_password@postgres:5432/ai_db
       DB_ECHO: "false"
@@ -76,9 +78,6 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
-    depends_on:
-      - backend
-      - frontend
     ports:
       - "80:80"
       - "443:443"

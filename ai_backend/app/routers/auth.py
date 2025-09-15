@@ -1,4 +1,6 @@
 # app/routers/auth.py
+import os
+
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlmodel import Session, select
@@ -32,9 +34,10 @@ def request_signup(data: RequestSignup, request: Request, session: Session = Dep
     session.commit()
 
     # В консоль — ссылку (в реальности отправляйте письмо)
-    # base = str(request.base_url).rstrip("/")
-    base = 'http://localhost:3000'
-    link = f"{base}/auth/complete-signup?token={token}"
+    base = str(request.base_url).rstrip("/")
+    # base = 'http://localhost:3000'
+    frontend_base = os.getenv("FRONTEND_BASE_URL", str(request.base_url)).rstrip("/")
+    link = f"{frontend_base}/auth/complete-signup?token={token}"
     send_signup_link(user.email, link)
 
     return {"detail": "If email exists, a link has been sent."}
