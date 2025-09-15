@@ -63,6 +63,8 @@ services:
         condition: service_healthy
     networks: [web]
     restart: unless-stopped
+    volumes:
+     - ./ai_backend/static/uploads:/app/static/uploads
 
   frontend:
     build:

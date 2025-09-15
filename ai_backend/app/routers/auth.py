@@ -13,6 +13,8 @@ from utils.security import hash_password, verify_password, create_access_token
 from utils.dependencies import get_current_user
 from utils.email import send_signup_link
 
+from sqlalchemy import func
+
 router = APIRouter()
 
 @router.post("/request-signup")
@@ -69,7 +71,11 @@ def complete_signup(data: CompleteSignup, session: Session = Depends(get_session
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, session: Session = Depends(get_session)):
     # логин может быть email или username
-    q = select(User).where((User.email == data.login) | (User.username == data.login))
+    # q = select(User).where((User.email == data.login) | (User.username == data.login))
+    q = select(User).where(
+        (func.lower(User.email) == func.lower(data.login)) |
+        (func.lower(User.username) == func.lower(data.login))
+    )
     user = session.exec(q).first()
     if not user or not user.hashed_password or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
