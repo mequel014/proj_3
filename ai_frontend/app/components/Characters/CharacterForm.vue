@@ -17,13 +17,14 @@ const photo_url = ref(props.model.photo_url || '')
 const loading = ref(false)
 const error = ref('')
 const chStore = useCharactersStore()
-
+const config = useRuntimeConfig()
 async function handlePhoto(e) {
   const file = e.target.files?.[0]
   if (!file) return
   try {
     const res = await chStore.uploadPhoto(file)
-    photo_url.value = res.photo_url || res.url || ''
+    const rawUrl = res.photo_url || res.url || ''
+    photo_url.value = normalizeUrl(rawUrl, config)
   } catch (e) {
     error.value = 'Ошибка загрузки фото'
   }
