@@ -1,4 +1,3 @@
-<!-- CharacterCard.vue -->
 <script setup>
 const props = defineProps({
   character: { type: Object, required: true },
@@ -6,8 +5,6 @@ const props = defineProps({
 })
 const router = useRouter()
 const config = useRuntimeConfig()
-
-const characterStore = useCharactersStore()
 
 function normalizeUrl(u) {
   if (!u) return ''
@@ -133,23 +130,6 @@ function openChat() {
 function edit() {
   router.push(`/characters/${props.character.id}/edit`)
 }
-
-const votingBusy = ref(false)
-async function toggleVote(v) {
-  if (votingBusy.value) return
-  votingBusy.value = true
-  try {
-    const current = props.character.my_vote ?? 0
-    const next = current === v ? 0 : v
-    await characterStore.voteCharacter(props.character.id, next)
-  } catch (e) {
-    // Можно заменить на собственный тост
-    if (process.client) alert('Нужно войти, чтобы голосовать')
-    // или обработать 401/403 по $api
-  } finally {
-    votingBusy.value = false
-  }
-}
 </script>
 
 <template>
@@ -165,46 +145,17 @@ async function toggleVote(v) {
           <p class="title has-text-white is-5">{{ character.name }}</p>
           <p class="subtitle is-6">
             <span class="tag is-dark">{{ character.gender || '—' }}</span>
-
+            
+            <span class="tag is-link ml-2">⭐ {{ character.rating ?? '—' }}</span>
             <span class="tag is-warning ml-2" v-if="character.is_public === false">private</span>
           </p>
         </div>
       </div>
-
       <div class="content">
         <div class="tags">
           <span class="tag" v-for="tag in character.interests || []" :key="tag">{{ tag }}</span>
         </div>
-
-        <!-- Голосование -->
-        <div class="field has-addons mt-2">
-          <p class="control">
-            <button
-              class="button is-small"
-              :class="{ 'is-success is-light': character.my_vote === 1 }"
-              :disabled="votingBusy"
-              @click="toggleVote(1)"
-              aria-label="Лайк"
-              title="Лайк"
-            >
-              👍 <span v-if="character.likes_count" class="ml-1">{{ character.likes_count }}</span>
-            </button>
-          </p>
-          <p class="control">
-            <button
-              class="button is-small"
-              :class="{ 'is-danger is-light': character.my_vote === -1 }"
-              :disabled="votingBusy"
-              @click="toggleVote(-1)"
-              aria-label="Дизлайк"
-              title="Дизлайк"
-            >
-              👎 <span v-if="character.dislikes_count" class="ml-1">{{ character.dislikes_count }}</span>
-            </button>
-          </p>
-        </div>
       </div>
-
       <div class="buttons">
         <button class="button is-primary" @click="openChat">Чат</button>
         <button class="button" v-if="mine" @click="edit">Редактировать</button>

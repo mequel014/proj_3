@@ -12,7 +12,7 @@ const bio = ref(props.model.bio || '')             // NEW
 const context = ref(props.model.context || '')
 const is_public = ref(props.model.is_public ?? true)
 const photo_url = ref(props.model.photo_url || '')
-const rating = ref(props.model.rating || '')
+// const rating = ref(props.model.rating || '')
 
 const loading = ref(false)
 const error = ref('')
@@ -41,7 +41,6 @@ async function handleSubmit() {
       context: context.value,
       is_public: is_public.value,
       photo_url: photo_url.value,
-      rating: rating.value ? Number(rating.value) : undefined
     }
     await emit('submit', payload)
   } catch (e) {
@@ -93,10 +92,10 @@ async function handleSubmit() {
           <label class="label">Контекст (системное сообщение)</label>
           <textarea class="textarea" v-model="context" rows="5" placeholder="Обстановка, мысли, стиль ответа и т.д."></textarea>
         </div>
-        <div class="field">
+        <!-- <div class="field">
           <label class="label">Рейтинг (например 7.7)</label>
           <input class="input" v-model="rating" placeholder="7.7" />
-        </div>
+        </div> -->
         <div class="field">
           <label class="checkbox">
             <input type="checkbox" v-model="is_public" /> public (виден всем)

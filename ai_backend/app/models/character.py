@@ -19,9 +19,36 @@ class Character(SQLModel, table=True):
     context: str  # системное сообщение при старте диалога
 
     interests: List[str] = Field(default_factory=list, sa_column=Column(JSON))
-    rating: Optional[float] = 0.0
+
+    # Новое
+    likes_count: int = Field(default=0)
+    dislikes_count: int = Field(default=0)
+
+    # Лучше None, чтобы «—» показывалось, пока нет голосов
+    # rating: Optional[float] = Field(default=None)
 
     is_public: bool = True
     is_blocked: bool = False
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# class Character(SQLModel, table=True):
+#     id: Optional[int] = Field(default=None, primary_key=True)
+
+#     owner_id: int = Field(index=True, foreign_key="user.id")
+
+#     name: str
+#     gender: Optional[str] = None
+#     photo_url: Optional[str] = None
+
+#     bio: Optional[str] = None
+#     context: str  # системное сообщение при старте диалога
+
+#     interests: List[str] = Field(default_factory=list, sa_column=Column(JSON))
+#     rating: Optional[float] = 0.0
+
+#     is_public: bool = True
+#     is_blocked: bool = False
+
+#     created_at: datetime = Field(default_factory=datetime.utcnow)

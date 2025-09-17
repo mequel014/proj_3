@@ -7,9 +7,11 @@ from sqlmodel import Session, select
 
 from utils.db import get_session
 from utils.dependencies import get_current_user, require_admin
+from utils.characters import build_character_out
 from models.user import User
 from models.character import Character
-from schemas.character import CharacterCreate, CharacterUpdate, CharacterOut
+from schemas.character import CharacterCreate, CharacterUpdate, CharacterOut, VoteIn
+from models.character_vote import CharacterVote
 
 router = APIRouter()
 
@@ -27,7 +29,31 @@ def list_characters(
         q = q.where(Character.owner_id == owner_id)
     else:
         q = q.where(Character.is_public == True)
-    return session.exec(q.order_by(Character.created_at.desc())).all()
+
+    items = session.exec(q.order_by(Character.created_at.desc())).all()
+    if not items:
+        return []
+
+    # Собираем голоса текущего пользователя одним запросом
+    vmap = {}
+    if current_user:
+        ids = [c.id for c in items]
+        votes = session.exec(
+            select(CharacterVote).where(
+                CharacterVote.user_id == current_user.id,
+                CharacterVote.character_id.in_(ids),
+            )
+        ).all()
+        vmap = {v.character_id: v.value for v in votes}
+
+    # Преобразуем Character -> CharacterOut и проставим my_vote из карты
+    out: List[CharacterOut] = [
+        CharacterOut.model_validate(ch, from_attributes=True).model_copy(
+            update={"my_vote": vmap.get(ch.id)}
+        )
+        for ch in items
+    ]
+    return out
 
 @router.post("", response_model=CharacterOut)
 def create_character(
@@ -43,7 +69,6 @@ def create_character(
         bio=data.bio,
         context=data.context,
         interests=data.interests or [],
-        rating=data.rating or 0.0,
         is_public=data.is_public,
     )
     session.add(ch)
@@ -52,14 +77,25 @@ def create_character(
     return ch
 
 @router.get("/{character_id}", response_model=CharacterOut)
-def get_character(character_id: int, session: Session = Depends(get_session), current_user: Optional[User] = Depends(get_current_user)):
+def get_character(character_id: int, 
+                  session: Session = Depends(get_session), 
+                  current_user: Optional[User] = Depends(get_current_user)):
     ch = session.get(Character, character_id)
     if not ch or ch.is_blocked:
         raise HTTPException(status_code=404, detail="Character not found")
     if not ch.is_public:
         if not current_user or (current_user.id != ch.owner_id and not current_user.is_admin):
             raise HTTPException(status_code=403, detail="Private character")
-    return ch
+    # return ch
+    if current_user:
+        v = session.exec(
+            select(CharacterVote).where(
+                CharacterVote.user_id == current_user.id,
+                CharacterVote.character_id == character_id,
+            )
+        ).first()
+        # setattr(ch, "my_vote", v.value if v else None)
+    return build_character_out(session, ch, current_user.id)
 
 @router.patch("/{character_id}", response_model=CharacterOut)
 def update_character(
@@ -79,7 +115,7 @@ def update_character(
     session.add(ch)
     session.commit()
     session.refresh(ch)
-    return ch
+    return build_character_out(session, ch, current_user.id)
 
 @router.post("/{character_id}/block")
 def block_character(character_id: int, session: Session = Depends(get_session), admin: User = Depends(require_admin)):
@@ -99,3 +135,55 @@ def upload_photo(file: UploadFile = File(...)):
     with open(path, "wb") as f:
         f.write(file.file.read())
     return {"photo_url": f"/{path}"}
+
+@router.post("/{character_id}/vote", response_model=CharacterOut)
+def vote_character(
+    character_id: int,
+    data: VoteIn,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    ch = session.get(Character, character_id)
+    if not ch:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    vote = session.exec(
+        select(CharacterVote).where(
+            CharacterVote.character_id == character_id,
+            CharacterVote.user_id == current_user.id,
+        )
+    ).one_or_none()
+
+    new_value = data.value  # -1, 0, 1
+    old_value = vote.value if vote else 0
+
+    # Обновляем лайки/дизлайки
+    def dec(v):
+        if v == 1: ch.likes_count -= 1
+        elif v == -1: ch.dislikes_count -= 1
+    def inc(v):
+        if v == 1: ch.likes_count += 1
+        elif v == -1: ch.dislikes_count += 1
+
+    if new_value == 0:
+        # Сброс голоса
+        if vote:
+            dec(vote.value)
+            session.delete(vote)
+    else:
+        if not vote:
+            vote = CharacterVote(character_id=character_id, user_id=current_user.id, value=new_value)
+            inc(new_value)
+            session.add(vote)
+        else:
+            if vote.value != new_value:
+                dec(vote.value)
+                vote.value = new_value
+                inc(new_value)
+            # Если vote.value == new_value, ничего не меняем (клиент мог нажать тот же)
+
+    session.add(ch)
+    session.commit()
+    session.refresh(ch)
+
+    return build_character_out(session, ch, current_user.id)

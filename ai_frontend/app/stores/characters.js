@@ -47,10 +47,30 @@ export const useCharactersStore = defineStore('characters', () => {
     })
   }
 
+  async function voteCharacter(id, value) {
+    const { $api } = useNuxtApp()
+    const updated = await $api(`/characters/${id}/vote`, {
+      method: 'POST',
+      body: { value }
+    })
+
+    const apply = (arrRef) => {
+      const idx = arrRef.value.findIndex(c => c.id === id)
+      if (idx !== -1) {
+        // мягко обновим объект, чтобы сохранить реактивность
+        arrRef.value[idx] = { ...arrRef.value[idx], ...updated }
+      }
+    }
+    apply(list)
+    apply(mine)
+
+    return updated
+  }
+
   function getById(id) {
     const n = Number(id)
     return mine.value.find(c => c.id === n) || list.value.find(c => c.id === n)
   }
 
-  return { list, mine, loading, fetchPublic, fetchMine, createCharacter, updateCharacter, uploadPhoto, getById }
+  return { list, mine, loading, fetchPublic, fetchMine, createCharacter, updateCharacter, uploadPhoto, getById, voteCharacter }
 })

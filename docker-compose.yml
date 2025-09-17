@@ -48,8 +48,12 @@ services:
       DATABASE_URL: postgresql+psycopg://ai_user:ai_password@postgres:5432/ai_db
       DB_ECHO: "false"
       # SMTP: по умолчанию шлём в mailpit (для теста)
-      SMTP_HOST: smtp
-      SMTP_PORT: 1025
+      # SMTP_HOST: smtp
+      # SMTP_PORT: 1025
+      # SMTP_TLS: "false"
+      # Подключение к Postfix (работает на хосте)
+      SMTP_HOST: host.docker.internal  # или ip хоста (например 172.17.0.1)
+      SMTP_PORT: 25
       SMTP_TLS: "false"
       # Если используете реальный SMTP провайдер:
       # SMTP_HOST: smtp.mailgun.org

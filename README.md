@@ -585,8 +585,46 @@ smtp:
 -----------
 
 ПОДКЛЮЧЕНИЕ ПОЧТЫ
+https://ruvds.com/ru/helpcenter/ustanovka-i-nastroyka-pochtovogo-servera/
+
+sudo dpkg-reconfigure postfix
+
+echo "PTR fixed test" | mail -s "PTR Test OK?" maxim-titkov@yandex.ru
+systemctl restart postfix
 
 Отлично, давай переключим рассылку с Mailpit на реальный SMTP и отправителя nonreply@sillytavern.ru.
+
+Убедитесь, что Postfix слушает не только loopback и принимает с docker-подсети:
+
+ДЛЯ КОНТЕЙНЕРА:
+      STMP_HOST: host.docker.internal
+      STMP_PORT: 25
+      SMTP_TLS: "false"
+
+Проверка:
+sudo postconf -n | egrep 'inet_interfaces|mynetworks'
+— inet_interfaces должно быть all (или включать адреса, а не только loopback).
+Узнайте подсеть docker-сети web:
+docker network inspect sillytavern_web | grep -i Subnet
+Допустим, там 172.18.0.0/16
+Добавьте её в mynetworks и перегрузите Postfix:
+sudo postconf -e "mynetworks = 127.0.0.0/8 172.18.0.0/16"
+sudo systemctl reload postfix
+
+docker compose exec backend sh -lc 'getent hosts host.docker.internal && (nc -vz host.docker.internal 25 || telnet host.docker.internal 25)'
+
+отправляем из контейнера
+docker compose exec backend python - <<'PY'
+import smtplib, email.message
+msg = email.message.EmailMessage()
+msg['Subject'] = 'Backend → Postfix test'
+msg['From'] = 'noreply@sillytavern.ru'
+msg['To'] = 'maxim-titkov@yandex.ru'
+msg.set_content('hello from backend')
+s = smtplib.SMTP('host.docker.internal', 25, timeout=10)
+s.send_message(msg)
+s.quit() 
+PY
 
 Что нужно сделать
 1) Выбрать способ отправки
@@ -702,3 +740,13 @@ def send_signup_link(to_email: str, link: str):
   - SMTP: smtp.mailgun.org:587, user/password — из панели
 
 Хочешь — скажи, каким провайдером будешь пользоваться (Mailgun/SendGrid/Yandex 360 и т.п.), пришлю точные DNS-записи и готовый блок environment для docker-compose.
+
+
+Нормальный список контейнеров
+docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+
+
+## ЕСЛИ МЕНЯЮ БАЗУ ДАННЫХ (БЕЗ МИГРАЦИЙ), НУЖНО ПОЛНОСТЬЮ ЕЕ УДАЛИТЬ
+docker compose down
+docker volume rm sillytavern_pgdata
+docker compose up -d
