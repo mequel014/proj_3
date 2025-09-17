@@ -1,4 +1,7 @@
+<!-- components/messageBubble.vue -->
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({ message: { type: Object, required: true } })
 const role = computed(() => props.message.role || 'assistant')
 </script>
@@ -11,5 +14,7 @@ const role = computed(() => props.message.role || 'assistant')
 </template>
 
 <style scoped>
-.bubble { margin: 0.25rem 0; }
+.bubble {
+  margin: 0.25rem 0;
+}
 </style>

@@ -1,8 +1,10 @@
+<!-- pages/characters/[id]/index.vue -->
 <script setup>
 const route = useRoute()
 const ch = useCharactersStore()
 const id = computed(() => route.params.id)
 const character = computed(() => ch.getById(id.value))
+
 onMounted(async () => {
   if (!character.value) {
     await ch.fetchPublic()
